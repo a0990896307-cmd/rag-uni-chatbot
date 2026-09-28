@@ -1,0 +1,14 @@
+services:
+  unibot:
+    build: .
+    container_name: unibot
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    environment:
+      - OLLAMA_HOST=localhost:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

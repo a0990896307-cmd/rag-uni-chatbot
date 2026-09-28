@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>University Info Chatbot</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; }
+  .sidebar { width: 280px; background: #1e293b; padding: 20px; display: flex; flex-direction: column; gap: 16px; border-right: 1px solid #334155; }
+  .chat { flex: 1; display: flex; flex-direction: column; }
+  .header { padding: 16px 24px; border-bottom: 1px solid #334155; background: #1e293b; }
+  .messages { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 70%; padding: 12px 16px; border-radius: 12px; line-height: 1.5; white-space: pre-wrap; }
+  .msg.user { align-self: flex-end; background: #2563eb; }
+  .msg.bot { align-self: flex-start; background: #334155; }
+  .input-row { display: flex; gap: 8px; padding: 16px 24px; border-top: 1px solid #334155; }
+  input[type=text] { flex: 1; padding: 12px 16px; border-radius: 8px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; outline: none; }
+  select, button { padding: 12px; border-radius: 8px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; cursor: pointer; }
+  button.primary { background: #2563eb; border: none; }
+  button:hover { opacity: 0.9; }
+  h2 { font-size: 16px; }
+  .uni-item { font-size: 14px; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 8px; background: #0f172a; }
+  .uni-item label { font-size: 12px; color: #94a3b8; }
+  .sources { font-size: 12px; color: #94a3b8; margin-top: 8px; }
+  .sources a { color: #60a5fa; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h2>Universities</h2>
+  <div id="uniList"></div>
+  <button class="primary" onclick="scrapeAll()">Scrape Now</button>
+</div>
+
+<div class="chat">
+  <div class="header"><h2>Ask about the university</h2></div>
+  <div class="messages" id="messages"></div>
+  <div class="input-row">
+    <select id="uniSelect"><option value="">All universities</option></select>
+    <input type="text" id="question" placeholder="e.g.: What bachelor programs does TU Wien offer?" onkeydown="if(event.key==='Enter')send()">
+    <button class="primary" onclick="send()">Send</button>
+  </div>
+</div>
+
+<script>
+async function loadUniversities() {
+  const res = await fetch('/universities');
+  const data = await res.json();
+  const list = document.getElementById('uniList');
+  const select = document.getElementById('uniSelect');
+  list.innerHTML = ''; select.innerHTML = '<option value="">All universities</option>';
+  for (const u of data) {
+    const div = document.createElement('div');
+    div.className = 'uni-item';
+    div.innerHTML = `
+      <strong>${u.name}</strong>
+      <label>Scrape interval: <input type="number" min="1" max="60" value="${u.scrape_interval_days}"
+        onchange="setInterval('${u.id}', this.value)" style="width:60px"> days</label>`;
+    list.appendChild(div);
+    const opt = document.createElement('option');
+    opt.value = u.id; opt.textContent = u.name;
+    select.appendChild(opt);
+  }
+}
+
+async function setInterval(uni, days) {
+  const res = await fetch('/settings', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({university: uni, scrape_interval_days: parseInt(days)})
+  });
+  const data = await res.json();
+  if (!data.ok) alert('Error');
+}
+
+async function scrapeAll() {
+  const res = await fetch('/universities');
+  const data = await res.json();
+  for (const u of data) {
+    await fetch('/scrape', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({university:u.id})});
+  }
+  alert('Scraping completed');
+}
+
+function addMsg(text, role, sources) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.textContent = text;
+  if (sources && sources.length) {
+    const s = document.createElement('div');
+    s.className = 'sources';
+    s.innerHTML = 'Sources: ' + sources.map(x => `<a href="${x.url}" target="_blank">${x.title}</a>`).join(', ');
+    div.appendChild(s);
+  }
+  document.getElementById('messages').appendChild(div);
+  document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+}
+
+async function send() {
+  const q = document.getElementById('question').value.trim();
+  if (!q) return;
+  const uni = document.getElementById('uniSelect').value || null;
+  addMsg(q, 'user');
+  document.getElementById('question').value = '';
+  addMsg('Thinking...', 'bot');
+  try {
+    const res = await fetch('/ask', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({question: q, university: uni})
+    });
+    const data = await res.json();
+    document.querySelector('.msg.bot:last-child').textContent = data.answer;
+    const last = document.querySelector('.msg.bot:last-child');
+    if (data.sources && data.sources.length) {
+      const s = document.createElement('div');
+      s.className = 'sources';
+      s.innerHTML = 'Sources: ' + data.sources.map(x => `<a href="${x.url}" target="_blank">${x.title}</a>`).join(', ');
+      last.appendChild(s);
+    }
+  } catch(e) {
+    document.querySelector('.msg.bot:last-child').textContent = 'Server error: ' + e.message;
+  }
+}
+
+loadUniversities();
+</script>
+</body>
+</html>

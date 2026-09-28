@@ -1,0 +1,33 @@
+# Конфигурация университетов
+# scrape_interval_days: как часто пересканировать сайт (настраивается через API/UI)
+# max_pages: ограничение числа страниц для одного прохода (безопасность)
+# allowed_paths: какие разделы сайта сканировать (None = весь домен)
+
+universities:
+  - id: tu_wien
+    name: TU Wien
+    base_url: "https://www.tuwien.at"
+    scrape_interval_days: 14
+    max_pages: 200
+    allowed_paths: null
+
+  - id: univie
+    name: University of Vienna
+    base_url: "https://www.univie.ac.at"
+    scrape_interval_days: 14
+    max_pages: 200
+    allowed_paths: null
+
+# Генерация ответов: локальная модель Ollama (бесплатно, приватно)
+llm:
+  provider: ollama
+  model: "deepseek-r1:1.5b-64k"
+  ollama_base_url: "http://localhost:11434"
+
+# Эмбеддинги: локально (sentence-transformers), без внешних API
+embedding:
+  provider: local
+  model: "paraphrase-multilingual-MiniLM-L12-v2"
+  chunk_size: 800
+  chunk_overlap: 100
+  top_k: 5
